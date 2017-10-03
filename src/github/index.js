@@ -195,6 +195,36 @@ function getPullRequestCommits(resource) {
 }
 
 /**
+ * @param  {String} organization - GitHub organization name
+ * @param  {Number} page - current page of results
+ * @return {Array} list of unique organization members
+ */
+function getOrganizationMembers(organization, page) {
+  return github.orgs.getMembers({
+    org: organization,
+    page: page || 1,
+    per_page: 100
+  })
+    .then(function (res) {
+      var users = res.data;
+
+      if (users.length === 100) {
+        return getOrganizationMembers(organization, page + 1)
+          .then(function (res2) {
+            return users.concat(res2.data);
+          });
+      }
+
+      return users;
+    })
+    .then(function (users) {
+      return users.map(function (user) {
+        return user.login;
+      });
+    });
+}
+
+/**
  * @param  {String} githubToken - A GitHub token with user and repo scopes
  */
 module.exports = function(githubToken) {
@@ -222,6 +252,7 @@ module.exports = function(githubToken) {
     assignUsersToPullRequest: assignUsersToPullRequest,
     postPullRequestComment: postPullRequestComment,
     unassignUsersFromPullRequest: unassignUsersFromPullRequest,
-    parseGithubURL: parseGithubURL
+    parseGithubURL: parseGithubURL,
+    getOrganizationMembers: getOrganizationMembers
   };
 };

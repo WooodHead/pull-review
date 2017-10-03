@@ -26,6 +26,10 @@ min_authors_of_changed_files: 0
 # require a user to be listed in the reviewers section in order to be assigned to a pull request
 require_notification: true
 
+# reviewers must be members of at least one of these organizations
+required_organizations:
+  - OWNER
+
 # list of users and their app-specific usernames
 reviewers:
   alice:

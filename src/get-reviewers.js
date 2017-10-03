@@ -28,6 +28,7 @@ module.exports = function getReviewers(options) {
   var assignees = options.assignees || [];
   var authorLogin = options.authorLogin;
   var getBlameForFile = options.getBlameForFile;
+  var getOrganizationMembers = options.getOrganizationMembers;
   var retryReview = Boolean(options.retryReview);
 
   if (!getBlameForFile) {
@@ -48,6 +49,7 @@ module.exports = function getReviewers(options) {
   var fileBlacklist = config.fileBlacklist;
   var reviewPathFallbacks = config.reviewPathFallbacks;
   var reviewPathAssignments = config.reviewPathAssignments;
+  var requiredOrganizations = config.requiredOrganizations;
 
   files = files.map(PullRequestFile);
 
@@ -82,6 +84,7 @@ module.exports = function getReviewers(options) {
 
   var topModifiedFiles = modifiedFiles.slice(0, config.maxFiles);
 
+  var allowedUsers = {};
   var selectedReviewers = {};
   var excludedReviewers = {};
   var currentCommitters = {};
@@ -154,10 +157,12 @@ module.exports = function getReviewers(options) {
     var isReviewerBlacklisted =
       config.reviewBlacklist && config.reviewBlacklist.indexOf(reviewer) !== -1;
     var isReviewerExcluded = excludedReviewers[reviewer];
+    var isReviewerDisallowed = requiredOrganizations.length && !allowedUsers[reviewer];
     return (
       !isReviewerCurrentCommitter &&
       !isReviewerUnreachable &&
       !isReviewerBlacklisted &&
+      !isReviewerDisallowed &&
       !isReviewerExcluded &&
       !isReviewerSelected &&
       !isReviewerAuthor
@@ -166,37 +171,45 @@ module.exports = function getReviewers(options) {
 
   var assignedReviewers = [];
 
-  Object.keys(reviewPathAssignments || {})
-    .forEach(function(pattern) {
-      var matchingFiles = files.filter(function(file) {
-        return minimatch(file.filename, pattern, {
-          dot: true,
-          matchBase: true
-        });
-      });
+  return Promise.all(requiredOrganizations.map(getOrganizationMembers))
+    .then(function (users) {
+      allowedUsers = users.reduce(function (map, user) {
+        map[user] = true;
+        return map;
+      }, {});
 
-      matchingFiles.forEach(function() {
-        var assignedAuthors = reviewPathAssignments[pattern] || [];
-
-        assignedAuthors.forEach(function(author) {
-          if (!isEligibleReviewer(author)) {
-            return;
-          }
-
-          assignedReviewers.push({
-            login: author,
-            count: 0,
-            source: 'assignment'
+      Object.keys(reviewPathAssignments || {})
+        .forEach(function(pattern) {
+          var matchingFiles = files.filter(function(file) {
+            return minimatch(file.filename, pattern, {
+              dot: true,
+              matchBase: true
+            });
           });
 
-          selectedReviewers[author] = true;
+          matchingFiles.forEach(function() {
+            var assignedAuthors = reviewPathAssignments[pattern] || [];
+
+            assignedAuthors.forEach(function(author) {
+              if (!isEligibleReviewer(author)) {
+                return;
+              }
+
+              assignedReviewers.push({
+                login: author,
+                count: 0,
+                source: 'assignment'
+              });
+
+              selectedReviewers[author] = true;
+            });
+          });
         });
-      });
-    });
 
-  shuffle.knuthShuffle(assignedReviewers);
+      shuffle.knuthShuffle(assignedReviewers);
 
-  return Promise.all(topModifiedFiles.map(getBlameForFile))
+      return Promise.all(topModifiedFiles.map(getBlameForFile))
+    })
     .then(function(fileBlames) {
       var authorsLinesChanged = {};
       var filesWithOwnership = [];

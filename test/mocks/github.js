@@ -36,6 +36,11 @@ module.exports = function(options) {
       },
       base: {
         sha: 'c0ded0c'
+      },
+      repo: {
+        owner: {
+          login: options.owner || 'OWNER'
+        }
       }
     });
   }
@@ -240,6 +245,32 @@ module.exports = function(options) {
     mockGitBlame({file: 'JUST_DELETED'});
     mockGitBlame({file: 'JUST_ADDED'});
   }
+
+  function mockMembers (options) {
+    options = options || {};
+    var organization = options.organization || 'OWNER';
+
+    api.get('/orgs/' + organization + '/members?page=1&per_page=100')
+      .reply(200, options.members || [
+        {
+          login: 'alice'
+        },
+        {
+          login: 'bob'
+        },
+        {
+          login: 'charlie'
+        },
+        {
+          login: 'dee'
+        }
+      ]);
+  }
+
+  mockMembers({
+    organization: options.organization,
+    members: options.members
+  });
 
   return api;
 };

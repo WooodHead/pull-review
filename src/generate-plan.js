@@ -135,6 +135,9 @@ module.exports = function generatePlan(options) {
             sha: pullRequestRecord.data.base.sha,
             path: file.filename
           });
+        },
+        getOrganizationMembers: function (organization) {
+          return github.getOrganizationMembers(organization);
         }
       });
     })
